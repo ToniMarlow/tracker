@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Трекер задач</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg1:#eef5ff;--bg2:#ffe0f0;--bg3:#d4fbee;--bg4:#e6dcff;--text:#16223f;--muted:rgba(22,34,63,.62);
+--glass:rgba(255,255,255,.4);--gb:rgba(255,255,255,.8);--field:rgba(255,255,255,.55);--shadow:0 10px 34px rgba(60,80,150,.15);
+--hi:#ff4d63;--mid:#ff9f1a;--lo:#22b88a;--accent:#3b6cff;--warn:rgba(255,159,26,.22)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg1:#0b0e26;--bg2:#3a1262;--bg3:#0a4a58;--bg4:#1c2a7a;--text:#f2f5ff;--muted:rgba(242,245,255,.62);--glass:rgba(255,255,255,.08);--gb:rgba(255,255,255,.2);--field:rgba(255,255,255,.1);--shadow:0 10px 34px rgba(0,0,0,.4);--hi:#ff6b7d;--mid:#ffb23d;--lo:#3fd9a8;--accent:#7a9bff}}
+:root[data-theme="dark"]{--bg1:#0b0e26;--bg2:#3a1262;--bg3:#0a4a58;--bg4:#1c2a7a;--text:#f2f5ff;--muted:rgba(242,245,255,.62);--glass:rgba(255,255,255,.08);--gb:rgba(255,255,255,.2);--field:rgba(255,255,255,.1);--shadow:0 10px 34px rgba(0,0,0,.4);--hi:#ff6b7d;--mid:#ffb23d;--lo:#3fd9a8;--accent:#7a9bff}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:var(--bg1);color:var(--text);font-family:'Onest',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+body::before{content:"";position:fixed;inset:0;z-index:-1;background:radial-gradient(55% 38% at 10% 8%,var(--bg2),transparent 70%),radial-gradient(50% 36% at 95% 30%,var(--bg3),transparent 70%),radial-gradient(60% 40% at 20% 92%,var(--bg4),transparent 70%),radial-gradient(45% 30% at 90% 85%,var(--bg2),transparent 70%)}
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(170%);backdrop-filter:blur(22px) saturate(170%);border:1px solid var(--gb);box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.5)}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:580px;margin:0 auto;padding:22px 16px 120px}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{margin:0;font-size:32px;line-height:1.05;font-weight:700;letter-spacing:-.025em}
+.sub{margin:6px 0 0;color:var(--muted);font-size:15px}
+.nav{display:flex;gap:8px}
+.circle{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;padding:0;transition:transform .2s}
+.circle:active{transform:scale(.9)}
+svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tabs{position:relative;display:grid;grid-template-columns:1fr 1fr;margin:18px 0 14px;padding:4px;border-radius:999px}
+.tabs button{position:relative;z-index:1;border:0;background:none;padding:9px 0;border-radius:999px;color:var(--muted);transition:color .3s}
+.tabs button[aria-pressed="true"]{color:var(--text);font-weight:600}
+.pill{position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);border-radius:999px;background:var(--gb);transition:transform .45s cubic-bezier(.3,1.3,.5,1)}
+.card{padding:14px 16px;border-radius:22px;margin-bottom:12px}
+.row2{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:14px;color:var(--muted)}
+.bar{height:6px;margin-top:10px;border-radius:99px;background:rgba(128,128,150,.22);overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--lo));transition:width .7s cubic-bezier(.2,.9,.2,1)}
+.warn{background:var(--warn);border-color:rgba(255,159,26,.5)}
+.btn{border:0;border-radius:99px;padding:9px 16px;background:var(--accent);color:#fff;font-weight:600;transition:transform .2s,opacity .2s}
+.btn:active{transform:scale(.95)}
+.btn.soft{background:var(--gb);color:var(--text)}
+.btn[disabled]{opacity:.4}
+.row{display:flex;gap:10px;margin-bottom:10px}
+.row.in{animation:rise .5s cubic-bezier(.2,.9,.2,1) both;animation-delay:calc(var(--i)*55ms)}
+@keyframes rise{from{opacity:0;transform:translateY(14px) scale(.97)}}
+.sl{animation:slr .4s cubic-bezier(.2,.9,.2,1)}.sr{animation:sll .4s cubic-bezier(.2,.9,.2,1)}
+@keyframes slr{from{opacity:0;transform:translateX(26px)}}@keyframes sll{from{opacity:0;transform:translateX(-26px)}}
+.tm{flex:none;width:44px;padding-top:14px;display:flex;flex-direction:column;gap:2px;font-size:13px;color:var(--muted);text-align:right}
+.tm b{color:var(--text);font-weight:600}
+.task{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px;border-radius:20px;transition:background .3s,border-color .3s,opacity .3s}
+.task.now{border-color:var(--accent);box-shadow:var(--shadow),0 0 0 3px rgba(59,108,255,.18)}
+.task.over{background:var(--warn);border-color:rgba(255,159,26,.55)}
+.task.done{opacity:.7}.task.done .ttl{text-decoration:line-through;color:var(--muted)}
+.chk{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid var(--c);background:transparent;padding:0;position:relative;transition:background .25s}
+.chk[aria-checked="true"]{background:var(--c);animation:pop .35s}
+.chk[aria-checked="true"]::after{content:"";position:absolute;left:8px;top:3px;width:6px;height:11px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+@keyframes pop{50%{transform:scale(1.25)}}
+.bd1{flex:1;min-width:0}
+.ttl{font-size:16px;line-height:1.3;overflow-wrap:anywhere}
+.meta{margin-top:3px;font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.meta button{border:0;background:none;padding:0;font-size:12.5px;color:var(--accent);font-weight:600;text-align:left}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--c);border:0;padding:0;flex:none}
+.x{flex:none;width:30px;height:30px;border:0;background:none;color:var(--muted);border-radius:50%;display:grid;place-items:center;padding:0}
+.x svg{width:15px;height:15px}
+.empty{padding:36px 16px;text-align:center;color:var(--muted);line-height:1.5}
+textarea,.fld{width:100%;border:1px solid var(--gb);background:var(--field);border-radius:16px;padding:12px 14px;font-size:16px;outline:none;resize:none}
+textarea:focus,.fld:focus{border-color:var(--accent)}
+.fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));width:58px;height:58px;border-radius:50%;border:0;background:var(--accent);color:#fff;display:grid;place-items:center;box-shadow:0 10px 26px rgba(59,108,255,.45);transition:transform .25s cubic-bezier(.3,1.4,.5,1)}
+.fab:active{transform:scale(.88) rotate(90deg)}.fab svg{width:24px;height:24px;stroke-width:2.4}
+.bd{position:fixed;inset:0;background:rgba(20,30,60,.28);opacity:0;pointer-events:none;transition:opacity .35s}
+.bd.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:50%;bottom:0;width:100%;max-width:580px;max-height:90vh;overflow:auto;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px));border-radius:28px 28px 0 0;transform:translate(-50%,110%);transition:transform .5s cubic-bezier(.2,.9,.2,1);-webkit-backdrop-filter:blur(34px) saturate(180%);backdrop-filter:blur(34px) saturate(180%);background:var(--glass-s,rgba(255,255,255,.62))}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--glass-s:rgba(30,34,70,.7)}}
+:root[data-theme="dark"]{--glass-s:rgba(30,34,70,.7)}
+.sheet.on{transform:translate(-50%,0)}
+.sheet h2{margin:0 0 14px;font-size:22px}
+.lab{margin:14px 0 8px;font-size:14px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--gb);background:var(--field);border-radius:99px;padding:8px 13px;font-size:14px;transition:background .25s,color .25s}
+.chip[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:transparent}
+.times{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.acts{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}.acts .btn{flex:1}
+.toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translate(-50%,-140%);padding:12px 18px;border-radius:99px;max-width:92vw;font-size:14px;transition:transform .5s cubic-bezier(.2,.9,.2,1);z-index:5}
+.toast.on{transform:translate(-50%,0)}
+.st{display:grid;grid-template-columns:128px 1fr 28px;gap:10px;align-items:center;margin:11px 0;font-size:14px}
+.st .bar{margin:0;height:10px}.st .bar i{background:var(--mid)}
+.why{padding:10px 0;border-top:1px solid var(--gb);font-size:14px;line-height:1.4}.why small{display:block;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div><h1>Трекер задач</h1><p class="sub" id="sub"></p></div>
+    <div class="nav">
+      <button class="glass circle" id="prev" aria-label="Предыдущий день"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button class="glass circle" id="next" aria-label="Следующий день"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+  </div>
+  <div class="glass tabs"><i class="pill" id="pill"></i>
+    <button data-t="day" aria-pressed="true">День</button><button data-t="stats" aria-pressed="false">Причины</button></div>
+  <main id="view"></main>
+</div>
+<button class="fab" id="fab" aria-label="Новая задача"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+<div class="bd" id="bd"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+<div class="toast glass" id="toast" role="status"></div>
+
+<script src="supabase.js"></script>
+<script src="config.js"></script>
+<script>
+(function(){
+var $=function(s){return document.querySelector(s)};
+function h(t,a){var e=document.createElement(t);a=a||{};for(var k in a){var v=a[k];if(k==='class')e.className=v;else if(k.slice(0,2)==='on')e[k]=v;else e.setAttribute(k,v)}
+ for(var i=2;i<arguments.length;i++)[].concat(arguments[i]).forEach(function(c){if(c!=null&&c!==false)e.append(c.nodeType?c:document.createTextNode(c))});return e}
+var CATS=['Не хватило времени','Отвлёкся','Устал','Планы изменились','Другое'];
+var REP=[['none','Один раз'],['daily','Каждый день'],['weekdays','По будням'],['weekly','Раз в неделю']];
+var PN=['Высокий','Средний','Низкий'],PC=['var(--hi)','var(--mid)','var(--lo)'];
+var LS='trk-v1',docs={},col=null,sampleFn=null,tab='day',anim='',first=true;
+try{docs=JSON.parse(localStorage.getItem(LS)||'{}')||{}}catch(e){}
+function persist(){try{localStorage.setItem(LS,JSON.stringify(docs))}catch(e){}}
+function put(k,v,quiet){docs[k]=v;persist();if(col)col.doc(k).set(v).catch(function(){});if(!quiet)render()}
+function rm(k){delete docs[k];persist();if(col)col.doc(k).delete().catch(function(){});render()}
+function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function D(s){return new Date(s+'T00:00')}
+var day=iso(new Date());
+function shift(s,n){var d=D(s);d.setDate(d.getDate()+n);return iso(d)}
+function pad(n){return String(n).padStart(2,'0')}
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1)}
+function occurs(t,ds){if(ds<t.d)return false;if(t.r==='none')return ds===t.d;var w=D(ds).getDay();
+ return t.r==='daily'||(t.r==='weekdays'&&w>0&&w<6)||(t.r==='weekly'&&w===D(t.d).getDay())}
+function dayTasks(ds){return Object.keys(docs).filter(function(k){return k.slice(0,2)==='t_'&&occurs(docs[k],ds)})
+ .map(function(k){var t=Object.assign({id:k.slice(2)},docs[k]);return t}).sort(function(a,b){return a.s<b.s?-1:a.s>b.s?1:0})}
+function logOf(ds,id){return docs['l_'+ds+'_'+id]}
+function status(t,ds){var l=logOf(ds,t.id);if(l)return l.st;var n=new Date();
+ if(n>new Date(ds+'T'+t.e))return'over';if(n>=new Date(ds+'T'+t.s))return'now';return'soon'}
+function pending(){var o=[],i,t0=iso(new Date());for(i=0;i<8;i++){var ds=shift(t0,-i);dayTasks(ds).forEach(function(t){if(status(t,ds)==='over')o.push({ds:ds,t:t})})}return o}
+
+/* sheet + toast */
+var tt;function toast(m){var e=$('#toast');e.textContent=m;e.classList.add('on');clearTimeout(tt);tt=setTimeout(function(){e.classList.remove('on')},4200)}
+function sheet(node){var s=$('#sheet');s.replaceChildren(node);s.classList.add('on');$('#bd').classList.add('on')}
+function close(){$('#sheet').classList.remove('on');$('#bd').classList.remove('on')}
+$('#bd').onclick=close;document.addEventListener('keydown',function(e){if(e.key==='Escape')close()});
+function chips(items,cur,on){var box=h('div',{class:'chips'});
+ function draw(){box.replaceChildren.apply(box,items.map(function(it){return h('button',{class:'chip','aria-pressed':String(cur===it[0]),onclick:function(){cur=it[0];on(cur);draw()}},it[1])}))}
+ draw();box.set=function(v){cur=v;draw()};return box}
+function ai(prompt){if(!sampleFn)return Promise.reject();return sampleFn.json(prompt,{modelTier:'quick',cache:false})}
+
+/* reason sheet */
+function reasonSheet(ds,t){var l=logOf(ds,t.id)||{},c=l.c||null,box=h('div');
+ var ta=h('textarea',{rows:'3',placeholder:'Что помешало? Можно коротко'});ta.value=l.why||'';
+ var save=h('button',{class:'btn',disabled:c?null:'',onclick:function(){put('l_'+ds+'_'+t.id,{st:'missed',c:c,why:ta.value.trim()});close()}},'Сохранить причину');
+ if(c)save.removeAttribute('disabled');
+ var cc=chips(CATS.map(function(x){return[x,x]}),c,function(v){c=v;save.removeAttribute('disabled')});
+ var help=sampleFn&&h('button',{class:'btn soft',onclick:function(){help.disabled=true;help.textContent='Думаю…';
+  ai('Задача «'+t.n+'» ('+t.s+'–'+t.e+') не выполнена. Категории: '+CATS.join(', ')+'. Выбрана: '+(c||'нет')+'. Черновик: «'+ta.value+'». Напиши честную причину: 1–2 коротких предложения от первого лица, простым языком, без оправданий и морали. Верни только JSON {"why":"...","c":"одна из категорий"}')
+  .then(function(r){if(r&&r.why)ta.value=r.why;if(r&&CATS.indexOf(r.c)>-1&&!c){cc.set(r.c);c=r.c;save.removeAttribute('disabled')}})
+  .catch(function(){toast('ИИ сейчас недоступен')}).then(function(){help.disabled=false;help.textContent='Помочь с формулировкой'})}},'Помочь с формулировкой');
+ box.append(h('h2',{},t.n),h('p',{class:'sub'},ds+', '+t.s+'–'+t.e),h('div',{class:'lab'},'Причина'),cc,h('div',{class:'lab'},'Подробнее'),ta,
+  h('div',{class:'acts'},help,h('button',{class:'btn soft',onclick:function(){put('l_'+ds+'_'+t.id,{st:'done'});close()}},'Всё же выполнено'),save));
+ sheet(box)}
+
+/* task sheet */
+function nextHour(){var d=new Date();return pad(Math.min(d.getHours()+1,22))+':00'}
+function addH(s,n){var m=Math.min(+s.slice(0,2)*60+ +s.slice(3)+n*60,1439);return pad(Math.floor(m/60))+':'+pad(m%60)}
+function newId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5)}
+function taskSheet(){var f={n:'',s:nextHour(),r:'none',p:1};f.e=addH(f.s,1);var box=h('div'),mode='m';
+ function draw(){
+  var tabs=h('div',{class:'chips'},h('button',{class:'chip','aria-pressed':String(mode==='m'),onclick:function(){mode='m';draw()}},'Вручную'),
+   sampleFn&&h('button',{class:'chip','aria-pressed':String(mode==='a'),onclick:function(){mode='a';draw()}},'Списком с ИИ'));
+  box.replaceChildren(h('h2',{},'Новая задача'),tabs,mode==='m'?manual():auto())}
+ function manual(){var n=h('input',{class:'fld',placeholder:'Что нужно сделать',maxlength:'120'});n.value=f.n;n.oninput=function(){f.n=n.value};
+  var s=h('input',{class:'fld',type:'time'}),e=h('input',{class:'fld',type:'time'});s.value=f.s;e.value=f.e;
+  s.onchange=function(){f.s=s.value;if(f.e<=f.s){f.e=addH(f.s,1);e.value=f.e}};e.onchange=function(){f.e=e.value};
+  return h('div',{},h('div',{class:'lab'},'Название'),n,h('div',{class:'lab'},'Время: с и до'),h('div',{class:'times'},s,e),
+   h('div',{class:'lab'},'Повтор'),chips(REP,f.r,function(v){f.r=v}),
+   h('div',{class:'lab'},'Приоритет'),chips(PN.map(function(x,i){return[i,x]}),f.p,function(v){f.p=v}),
+   h('div',{class:'acts'},h('button',{class:'btn',onclick:function(){
+    if(!f.n.trim())return toast('Введите название');if(!f.s||!f.e||f.e<=f.s)return toast('Время «до» должно быть позже «с»');
+    put('t_'+newId(),{n:f.n.trim(),s:f.s,e:f.e,d:day,r:f.r,p:f.p});close()}},'Добавить')))}
+ function auto(){var ta=h('textarea',{rows:'4',placeholder:'Например: завтра с 9 до 11 отчёт, каждый день в 7:00 зарядка на 20 минут'});
+  var out=h('div'),go=h('button',{class:'btn',onclick:function(){if(!ta.value.trim())return;go.disabled=true;go.textContent='Разбираю…';
+   ai('Сегодня '+iso(new Date())+', выбранный день '+day+'. Разбери текст на задачи расписания. Верни только JSON {"tasks":[{"n":"название","s":"HH:MM","e":"HH:MM","d":"YYYY-MM-DD","r":"none|daily|weekdays|weekly"}]}. Если время не указано, подбери разумное без пересечений; если дата не указана, возьми выбранный день. Текст: '+ta.value)
+   .then(function(r){var L=((r&&r.tasks)||[]).filter(function(t){return t.n&&/^\d\d:\d\d$/.test(t.s)}).map(function(t){
+     var e=/^\d\d:\d\d$/.test(t.e)&&t.e>t.s?t.e:addH(t.s,1);return{n:String(t.n).slice(0,120),s:t.s,e:e,d:/^\d{4}-\d\d-\d\d$/.test(t.d)?t.d:day,r:REP.some(function(x){return x[0]===t.r})?t.r:'none',p:1}});
+    if(!L.length)return toast('Не удалось найти задачи в тексте');
+    out.replaceChildren(h('div',{class:'lab'},'Найдено: '+L.length),L.map(function(t){return h('div',{class:'why'},t.n,h('small',{},t.d+', '+t.s+'–'+t.e+(t.r!=='none'?', повтор':'')))}),
+     h('div',{class:'acts'},h('button',{class:'btn',onclick:function(){L.forEach(function(t){put('t_'+newId(),t,true)});render();close();toast('Добавлено задач: '+L.length)}},'Добавить всё')))})
+   .catch(function(){toast('ИИ сейчас недоступен')}).then(function(){go.disabled=false;go.textContent='Разобрать'})}},'Разобрать');
+  return h('div',{},h('div',{class:'lab'},'Опишите задачи как удобно'),ta,h('div',{class:'acts'},go),out)}
+ draw();sheet(box)}
+function delSheet(t){var rec=t.r!=='none';sheet(h('div',{},h('h2',{},'Удалить «'+t.n+'»?'),h('p',{class:'sub'},rec?'Задача повторяется: удалятся все её повторения.':'Задача будет удалена.'),
+ h('div',{class:'acts'},h('button',{class:'btn soft',onclick:close},'Отмена'),h('button',{class:'btn',onclick:function(){rm('t_'+t.id);close()}},'Удалить'))))}
+
+/* views */
+function rel(ds){var t=iso(new Date()),d=Math.round((D(ds)-D(t))/864e5);return d===0?'Сегодня':d===-1?'Вчера':d===1?'Завтра':''}
+function dayView(){var list=dayTasks(day),pend=pending(),done=list.filter(function(t){return status(t,day)==='done'}).length,pct=list.length?Math.round(done/list.length*100):0;
+ var v=$('#view'),box=h('div',{class:anim});
+ if(pend.length)box.append(h('div',{class:'card glass warn'},h('div',{class:'row2'},h('span',{style:'color:var(--text)'},'Ждут причины: '+pend.length),
+  h('button',{class:'btn',onclick:function(){reasonSheet(pend[0].ds,pend[0].t)}},'Указать'))));
+ box.append(h('div',{class:'card glass'},h('div',{class:'row2'},h('span',{},list.length?done+' из '+list.length+' выполнено':'На этот день задач нет'),h('span',{},list.length?pct+'%':'')),
+  h('div',{class:'bar'},h('i',{id:'pb'}))));
+ if(!list.length)box.append(h('div',{class:'empty'},'Добавьте задачу кнопкой «+» и укажите время.'));
+ list.forEach(function(t,i){var s=status(t,day),l=logOf(day,t.id);
+  var chk=h('button',{class:'chk',role:'checkbox','aria-checked':String(s==='done'),'aria-label':'Выполнено',onclick:function(){if(s==='done')rm('l_'+day+'_'+t.id);else put('l_'+day+'_'+t.id,{st:'done'})}});
+  var meta=h('div',{class:'meta'},s==='now'&&h('span',{style:'color:var(--accent);font-weight:600'},'Идёт сейчас'),
+   s==='over'&&h('button',{onclick:function(){reasonSheet(day,t)}},'Время вышло, укажите причину'),
+   s==='missed'&&h('button',{onclick:function(){reasonSheet(day,t)}},'Не выполнено: '+l.c),
+   t.r!=='none'&&h('span',{},REP.filter(function(x){return x[0]===t.r})[0][1]));
+  box.append(h('div',{class:'row'+(anim?' in':''),style:'--i:'+i},h('div',{class:'tm'},h('b',{},t.s),h('span',{},t.e)),
+   h('div',{class:'task glass '+(s==='missed'?'over':s),style:'--c:'+PC[t.p]},chk,h('div',{class:'bd1'},h('div',{class:'ttl'},t.n),meta),
+    h('button',{class:'dot','aria-label':'Приоритет: '+PN[t.p]+'. Изменить',onclick:function(){put('t_'+t.id,Object.assign({},docs['t_'+t.id],{p:(t.p+1)%3}))}}),
+    h('button',{class:'x','aria-label':'Удалить',onclick:function(){delSheet(t)}},svgX()))))});
+ var nk='n_'+day,ta=h('textarea',{id:'note',rows:'3',placeholder:'Короткая заметка о дне'});ta.value=(docs[nk]||{}).x||'';
+ var tm;ta.oninput=function(){clearTimeout(tm);tm=setTimeout(function(){put(nk,{x:ta.value},true)},500)};
+ var nb=sampleFn&&h('button',{class:'btn soft',onclick:function(){nb.disabled=true;nb.textContent='Пишу…';
+  var lines=list.map(function(t){var l=logOf(day,t.id),s=status(t,day);return t.s+'–'+t.e+' '+t.n+': '+(s==='done'?'выполнено':s==='missed'?'не выполнено ('+l.c+(l.why?', '+l.why:'')+')':s==='over'?'время вышло':'впереди')}).join('\n');
+  ai('Вот задачи дня:\n'+lines+'\nЗаметка пользователя: «'+ta.value+'». Напиши короткую заметку-итог дня: 2–3 простых предложения на русском, без оценок и советов. Верни только JSON {"note":"..."}')
+  .then(function(r){if(r&&r.note){ta.value=(ta.value?ta.value+'\n':'')+r.note;put(nk,{x:ta.value},true)}}).catch(function(){toast('ИИ сейчас недоступен')})
+  .then(function(){nb.disabled=false;nb.textContent='Подвести итог с ИИ'})}},'Подвести итог с ИИ');
+ box.append(h('div',{class:'card glass'},ta,nb&&h('div',{class:'acts',style:'margin-top:10px'},nb)));
+ v.replaceChildren(box);requestAnimationFrame(function(){var p=$('#pb');if(p)p.style.width=pct+'%'})}
+function svgX(){var s=document.createElementNS('http://www.w3.org/2000/svg','svg');s.setAttribute('viewBox','0 0 24 24');var p=document.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d','M6 6l12 12M18 6L6 18');s.append(p);return s}
+function statsView(){var from=shift(iso(new Date()),-29),cnt={},done=0,miss=0,why=[];
+ Object.keys(docs).forEach(function(k){if(k.slice(0,2)!=='l_')return;var ds=k.slice(2,12);if(ds<from)return;var l=docs[k];
+  if(l.st==='done')done++;else{miss++;cnt[l.c]=(cnt[l.c]||0)+1;if(l.why)why.push({ds:ds,l:l,id:k.slice(13)})}});
+ why.sort(function(a,b){return a.ds<b.ds?1:-1});var mx=Math.max.apply(null,[1].concat(CATS.map(function(c){return cnt[c]||0})));
+ var box=h('div',{class:anim});
+ if(!miss){box.append(h('div',{class:'empty'},done?'За 30 дней нет невыполненных задач.':'Здесь появится статистика причин, когда вы начнёте отмечать задачи.'))}
+ else{box.append(h('div',{class:'card glass'},h('div',{class:'row2'},h('span',{style:'color:var(--text)'},'Не выполнено за 30 дней: '+miss),h('span',{},'выполнено: '+done)),
+  CATS.filter(function(c){return cnt[c]}).sort(function(a,b){return cnt[b]-cnt[a]}).map(function(c){return h('div',{class:'st'},h('span',{},c),h('div',{class:'bar'},h('i',{'data-w':Math.round(cnt[c]/mx*100)})),h('b',{},cnt[c]))})));
+  if(why.length)box.append(h('div',{class:'card glass'},h('div',{class:'row2',style:'margin-bottom:4px'},'Последние причины'),why.slice(0,8).map(function(w){
+   var t=docs['t_'+w.id];return h('div',{class:'why'},w.l.why,h('small',{},w.ds+', '+w.l.c+(t?', '+t.n:'')))})))}
+ if(cloud&&user)box.append(h('div',{class:'card glass'},h('div',{class:'row2'},h('span',{},user.email||'Аккаунт'),h('button',{class:'btn soft',onclick:signOut},'Выйти'))));$('#view').replaceChildren(box);requestAnimationFrame(function(){document.querySelectorAll('[data-w]').forEach(function(i){i.style.width=i.getAttribute('data-w')+'%'})})}
+function render(){if(needAuth){authView();return}chrome(true);var r=rel(day),d=cap(D(day).toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'}));
+ $('#sub').textContent=r?r+', '+d.charAt(0).toLowerCase()+d.slice(1):d;
+ document.querySelectorAll('.tabs button').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.t===tab))});
+ $('#pill').style.transform=tab==='day'?'translateX(0)':'translateX(100%)';
+ if(tab==='day')dayView();else statsView();anim='';sched()}
+function go(n){anim=n>0?'sl':'sr';day=shift(day,n);render()}
+$('#prev').onclick=function(){go(-1)};$('#next').onclick=function(){go(1)};
+document.querySelectorAll('.tabs button').forEach(function(b){b.onclick=function(){if(tab!==b.dataset.t){tab=b.dataset.t;anim='sl';render()}}});
+$('#fab').onclick=function(){try{if('Notification' in window&&Notification.permission==='default')Notification.requestPermission()}catch(e){}taskSheet()};
+
+/* notifications: while the page is open */
+function notify(title,body){toast(title+': '+body);try{if('Notification' in window&&Notification.permission==='granted')new Notification(title,{body:body})}catch(e){}}
+function seen(k){var o={};try{o=JSON.parse(localStorage.getItem('trk-n')||'{}')}catch(e){}if(o[k])return true;o[k]=1;
+ var ks=Object.keys(o);if(ks.length>200)ks.slice(0,100).forEach(function(x){delete o[x]});try{localStorage.setItem('trk-n',JSON.stringify(o))}catch(e){}return false}
+function tick(){var t0=iso(new Date()),n=new Date();flush();if(user&&!synced&&!syncing)startSync({user:user});
+ dayTasks(t0).forEach(function(t){if(status(t,t0)==='over'&&n-new Date(t0+'T'+t.e)<36e5&&!seen('e'+t0+t.id))notify('Время вышло','«'+t.n+'»: отметьте или укажите причину')});
+ if(n.getHours()>=21){var c=dayTasks(t0).filter(function(t){var s=status(t,t0);return s!=='done'&&s!=='missed'}).length;if(c&&!seen('d'+t0))notify('Итоги дня','Задач без отметки: '+c)}
+ if(!document.activeElement||document.activeElement.id!=='note')if(tab==='day'&&!needAuth)dayView()}
+setInterval(tick,30000);setTimeout(tick,2500);
+
+/* cloud sync (Supabase) + native notifications (Capacitor) */
+var cloud=!!(window.supabase&&window.TRK_CONFIG&&TRK_CONFIG.url&&TRK_CONFIG.key&&String(TRK_CONFIG.url).indexOf('http')===0),
+ sb=null,user=null,uid=null,needAuth=false,ch=null,synced=false,syncing=false,flushing=false,LN=null,stt;
+function chrome(on){['.tabs','.nav','#fab'].forEach(function(q){var e=$(q);if(e)e.style.display=on?'':'none'})}
+function loadDirty(){try{return JSON.parse(localStorage.getItem('trk-dirty')||'{}')||{}}catch(e){return{}}}
+function saveDirty(d){try{localStorage.setItem('trk-dirty',JSON.stringify(d))}catch(e){}}
+async function flush(){if(!sb||!uid||flushing)return;flushing=true;
+ try{var d=loadDirty();for(var k in d){var op=d[k],r;
+  if(op==='p'&&docs[k]!==undefined)r=await sb.from('items').upsert({user_id:uid,key:k,value:docs[k]},{onConflict:'user_id,key'});
+  else r=await sb.from('items').delete().eq('key',k);
+  if(r.error)break;var d2=loadDirty();if(d2[k]===op)delete d2[k];saveDirty(d2)}}catch(e){}
+ flushing=false}
+function errRu(m){m=String(m||'');return /Invalid login/i.test(m)?'Неверная почта или пароль':/already registered/i.test(m)?'Такой аккаунт уже есть: нажмите «Войти»':/at least 6|Password should/i.test(m)?'Пароль не короче 6 символов':/valid email|invalid format/i.test(m)?'Проверьте адрес почты':/rate limit/i.test(m)?'Слишком много попыток, подождите':/not confirmed/i.test(m)?'Подтвердите почту по письму':'Не получилось: '+m}
+function authView(){chrome(false);$('#sub').textContent='Войдите, чтобы задачи были на всех устройствах';
+ var em=h('input',{class:'fld',type:'email',placeholder:'Почта',autocomplete:'email'}),pw=h('input',{class:'fld',type:'password',placeholder:'Пароль, не короче 6 символов',autocomplete:'current-password'});
+ function go(up){var e=em.value.trim(),p=pw.value;if(!e||p.length<6)return toast('Введите почту и пароль от 6 символов');
+  (up?sb.auth.signUp({email:e,password:p}):sb.auth.signInWithPassword({email:e,password:p})).then(function(r){
+   if(r.error)return toast(errRu(r.error.message));
+   if(up&&!(r.data&&r.data.session))toast('Аккаунт создан. Подтвердите почту по письму и войдите')}).catch(function(){toast('Нет соединения')})}
+ pw.addEventListener('keydown',function(e){if(e.key==='Enter')go(false)});
+ $('#view').replaceChildren(h('div',{class:'card glass'},em,h('div',{style:'height:10px'}),pw,
+  h('div',{class:'acts'},h('button',{class:'btn soft',onclick:function(){go(true)}},'Создать аккаунт'),h('button',{class:'btn',onclick:function(){go(false)}},'Войти'))))}
+async function startSync(s){if(syncing)return;syncing=true;user=s.user;uid=user.id;needAuth=false;
+ var key='trk-u-'+uid,dirty=loadDirty(),local=docs;
+ if(!localStorage.getItem(key))Object.keys(local).forEach(function(k){dirty[k]='p'});
+ try{var rows=[],from=0;
+  for(;;){var r=await sb.from('items').select('key,value').range(from,from+999);if(r.error)throw r.error;rows=rows.concat(r.data);if(r.data.length<1000)break;from+=1000}
+  var remote={};rows.forEach(function(x){remote[x.key]=x.value});
+  Object.keys(dirty).forEach(function(k){if(dirty[k]==='p'&&local[k]!==undefined)remote[k]=local[k];if(dirty[k]==='d')delete remote[k]});
+  docs=remote;persist();saveDirty(dirty);try{localStorage.setItem(key,'1')}catch(e){}
+  synced=true;subscribe();flush();render()}
+ catch(e){toast('Нет связи с сервером, показаны данные телефона');render()}
+ syncing=false}
+function subscribe(){if(ch)sb.removeChannel(ch);
+ ch=sb.channel('items-'+uid).on('postgres_changes',{event:'*',schema:'public',table:'items'},function(p){
+  if(p.eventType==='DELETE'){if(p.old&&p.old.user_id&&p.old.user_id!==uid)return;if(p.old&&p.old.key)delete docs[p.old.key]}
+  else if(p.new&&p.new.user_id===uid)docs[p.new.key]=p.new.value;
+  persist();if(!document.activeElement||document.activeElement.id!=='note')render()}).subscribe()}
+function loggedOut(){user=null;uid=null;synced=false;docs={};persist();saveDirty({});if(ch){sb.removeChannel(ch);ch=null}needAuth=true;render();sched()}
+function signOut(){sb.auth.signOut().catch(function(){})}
+
+function nativeInit(){try{var C=window.Capacitor;
+ if(C&&C.isNativePlatform&&C.isNativePlatform()&&C.Plugins&&C.Plugins.LocalNotifications){LN=C.Plugins.LocalNotifications;
+  LN.requestPermissions().catch(function(){});
+  LN.createChannel({id:'tasks',name:'Задачи',importance:4,visibility:1,vibration:true}).catch(function(){})}}catch(e){}}
+function sched(){clearTimeout(stt);stt=setTimeout(scheduleNative,800)}
+async function scheduleNative(){if(!LN)return;
+ try{var p=await LN.getPending();
+  if(p.notifications&&p.notifications.length)await LN.cancel({notifications:p.notifications.map(function(n){return{id:n.id}})});
+  var out=[],id=1,now=new Date(),t0=iso(now);
+  for(var i=0;i<7;i++){var ds=shift(t0,i),left=0;
+   dayTasks(ds).forEach(function(t){if(logOf(ds,t.id))return;left++;var at=new Date(ds+'T'+t.e);
+    if(at>now)out.push({id:id++,title:'Время вышло',body:'«'+t.n+'»: отметьте или укажите причину',schedule:{at:at,allowWhileIdle:true},channelId:'tasks'})});
+   var ev=new Date(ds+'T21:00');
+   if(left&&ev>now)out.push({id:id++,title:'Итоги дня',body:'Задач без отметки: '+left+'. Откройте трекер и укажите причины',schedule:{at:ev,allowWhileIdle:true},channelId:'tasks'})}
+  if(out.length)await LN.schedule({notifications:out.slice(0,60)})}catch(e){}}
+
+if(cloud){sb=supabase.createClient(TRK_CONFIG.url,TRK_CONFIG.key,{auth:{persistSession:true,autoRefreshToken:true}});
+ col={doc:function(k){return{set:function(){var d=loadDirty();d[k]='p';saveDirty(d);return flush()},delete:function(){var d=loadDirty();d[k]='d';saveDirty(d);return flush()}}}};
+ sb.auth.onAuthStateChange(function(ev,s){setTimeout(function(){
+  if(!s||!s.user){if(ev==='SIGNED_OUT'||ev==='INITIAL_SESSION'){if(user)loggedOut();else{needAuth=true;render()}}return}
+  if(!user||user.id!==s.user.id)startSync(s)},0)});
+ window.addEventListener('online',function(){flush();if(user&&!synced&&!syncing)startSync({user:user})})}
+nativeInit();render();
+})();
+</script>
+</body>
+</html>
