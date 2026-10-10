@@ -31,8 +31,18 @@ jobs:
       - name: Add notification permissions
         run: |
           sed -i 's#</manifest>#    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>\n</manifest>#' android/app/src/main/AndroidManifest.xml
+      - name: Stamp build number
+        run: echo "window.TRK_BUILD=${{ github.run_number }};" > www/version.js
       - name: Sync web files
         run: npx cap sync android
+      - name: Use fixed signing key (if secret is set)
+        env:
+          KS: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS" ]; then
+            mkdir -p ~/.android
+            echo "$KS" | base64 -d > ~/.android/debug.keystore
+          fi
       - name: Build APK
         working-directory: android
         run: |
