@@ -140,7 +140,6 @@ input[type=range]{accent-color:var(--accent)}
 
 <script src="supabase.js"></script>
 <script src="config.js"></script>
-<script src="version.js"></script>
 <script>
 (function(){
 const $=s=>document.querySelector(s);
@@ -390,7 +389,7 @@ function statsView(){const from=shift(iso(new Date()),-(sp-1)),R=[];
    if(bl.length)box.append(gcard('Чаще всего срываются',bl.map(o=>{const rc=Object.keys(o.c).sort((a,b)=>o.c[b]-o.c[a])[0];return h('div',{class:'why'},o.n,h('small',{},'Срывов: '+o.k+', чаще всего: '+rc))})));
    const wl=M.filter(r=>r.l.why).sort((a,b)=>a.ds<b.ds?1:-1).slice(0,6);
    if(wl.length)box.append(gcard('Последние причины',wl.map(r=>h('div',{class:'why'},r.l.why,h('small',{},r.ds+', '+r.l.c+(r.t?', '+r.t.n:''))))))}}
- if(cloud&&user)box.append(h('div',{class:'card glass'},h('div',{class:'row2'},h('span',{},user.email||'Аккаунт'),h('button',{class:'btn soft',onclick:signOut},'Выйти'))));
+ if(cloud&&user)box.append(h('div',{class:'card glass'},h('div',{class:'row2'},h('span',{},user.email||'Аккаунт'),h('button',{class:'btn soft',onclick:signOut},'Выйти'))));else if(cloud)box.append(h('div',{class:'card glass'},h('div',{class:'row2'},h('span',{},'Синхронизация выключена'),h('button',{class:'btn soft',onclick:authSheet},'Включить'))));
  $('#view').replaceChildren(box);requestAnimationFrame(()=>document.querySelectorAll('[data-w]').forEach(i=>{i.style.width=i.getAttribute('data-w')+'%'}))}
 
 function render(){if(needAuth){authView();return}chrome(true);const r=rel(day),d=cap(D(day).toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'}));
@@ -441,7 +440,7 @@ async function flush(){if(!sb||!uid||flushing)return;flushing=true;
   else r=await sb.from('items').delete().eq('key',k);
   if(r.error)break;var d2=loadDirty();if(d2[k]===op)delete d2[k];saveDirty(d2)}}catch(e){}
  flushing=false}
-function errRu(m){m=String(m||'');return /Invalid login/i.test(m)?'Неверная почта или пароль':/already registered/i.test(m)?'Такой аккаунт уже есть: нажмите «Войти»':/at least 6|Password should/i.test(m)?'Пароль не короче 6 символов':/valid email|invalid format/i.test(m)?'Проверьте адрес почты':/rate limit/i.test(m)?'Слишком много попыток, подождите':/not confirmed/i.test(m)?'Подтвердите почту по письму':'Не получилось: '+m}
+function errRu(m){m=String(m||'');return /Invalid login/i.test(m)?'Неверная почта или пароль':/already registered/i.test(m)?'Такой аккаунт уже есть: нажмите «Войти»':/at least 6|Password should/i.test(m)?'Пароль не короче 6 символов':/valid email|invalid format/i.test(m)?'Проверьте адрес почты':/rate limit/i.test(m)?'Слишком много попыток, подождите':/not confirmed/i.test(m)?'Подтвердите почту по письму':/not authorized/i.test(m)?'Сервер не может отправить письмо на этот адрес: в Supabase выключите «Confirm email»':'Не получилось: '+m}
 function authView(){chrome(false);$('#sub').textContent='Войдите, чтобы задачи были на всех устройствах';
  var em=h('input',{class:'fld',type:'email',placeholder:'Почта',autocomplete:'email'}),pw=h('input',{class:'fld',type:'password',placeholder:'Пароль, не короче 6 символов',autocomplete:'current-password'});
  function go(up){var e=em.value.trim(),p=pw.value;if(!e||p.length<6)return toast('Введите почту и пароль от 6 символов');
@@ -451,6 +450,14 @@ function authView(){chrome(false);$('#sub').textContent='Войдите, что�
  pw.addEventListener('keydown',function(e){if(e.key==='Enter')go(false)});
  $('#view').replaceChildren(h('div',{class:'card glass'},em,h('div',{style:'height:10px'}),pw,
   h('div',{class:'acts'},h('button',{class:'btn soft',onclick:function(){go(true)}},'Создать аккаунт'),h('button',{class:'btn',onclick:function(){go(false)}},'Войти'))))}
+function authSheet(){const em=h('input',{class:'fld',type:'email',placeholder:'Почта',autocomplete:'email'}),pw=h('input',{class:'fld',type:'password',placeholder:'Пароль, не короче 6 символов',autocomplete:'current-password'});
+ function go(up){const e=em.value.trim(),p=pw.value;if(!e||p.length<6)return toast('Введите почту и пароль от 6 символов');
+  (up?sb.auth.signUp({email:e,password:p}):sb.auth.signInWithPassword({email:e,password:p})).then(r=>{
+   if(r.error)return toast(errRu(r.error.message));
+   if(up&&!(r.data&&r.data.session))toast('Аккаунт создан. Подтвердите почту по письму и войдите');else close()}).catch(()=>toast('Нет соединения'))}
+ pw.addEventListener('keydown',e=>{if(e.key==='Enter')go(false)});
+ sheet(h('div',{},h('h2',{},'Вход для синхронизации'),h('p',{class:'sub'},'Задачи с этого устройства загрузятся в аккаунт и появятся на других устройствах после входа в тот же аккаунт.'),em,h('div',{style:'height:10px'}),pw,
+  h('div',{class:'acts'},h('button',{class:'btn soft',onclick:()=>go(true)},'Создать аккаунт'),h('button',{class:'btn',onclick:()=>go(false)},'Войти'))))}
 async function startSync(s){if(syncing)return;syncing=true;user=s.user;uid=user.id;needAuth=false;
  var key='trk-u-'+uid,dirty=loadDirty(),local=docs;
  if(!localStorage.getItem(key))Object.keys(local).forEach(function(k){dirty[k]='p'});
@@ -467,12 +474,12 @@ function subscribe(){if(ch)sb.removeChannel(ch);
   if(p.eventType==='DELETE'){if(p.old&&p.old.user_id&&p.old.user_id!==uid)return;if(p.old&&p.old.key)delete docs[p.old.key]}
   else if(p.new&&p.new.user_id===uid)docs[p.new.key]=p.new.value;
   persist();if(!document.activeElement||document.activeElement.id!=='note')render()}).subscribe()}
-function loggedOut(){user=null;uid=null;synced=false;docs={};persist();saveDirty({});if(ch){sb.removeChannel(ch);ch=null}needAuth=true;render();sched()}
+function loggedOut(){user=null;uid=null;synced=false;docs={};persist();saveDirty({});if(ch){sb.removeChannel(ch);ch=null}needAuth=false;render();sched()}
 function signOut(){sb.auth.signOut().catch(function(){})}
 
 /* updates + notifications with action buttons */
-const REPO='ToniMarlow/tracker',NATIVE=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()),
- BUILD=typeof window.TRK_BUILD==='number'?window.TRK_BUILD:0;let upd=null;
+const REPO='ToniMarlow/tracker',NATIVE=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
+let BUILD=typeof window.TRK_BUILD==='number'?window.TRK_BUILD:0,upd=null;
 function apkUrl(){return 'https://github.com/'+REPO+'/releases/latest/download/app-debug.apk'}
 function openUrl(u){if(NATIVE)location.href=u;else window.open(u,'_blank')}
 function updCard(){return h('div',{class:'card glass warn'},h('div',{class:'row2'},h('span',{style:'color:var(--text)'},'Доступна новая версия (сборка '+upd.n+')'),h('button',{class:'btn',onclick:()=>openUrl(apkUrl())},'Обновить')),
@@ -483,14 +490,16 @@ async function checkUpdate(manual){
   const j=await r.json(),n=parseInt(String(j.tag_name||'').replace(/\D/g,''),10)||0;
   if(n>BUILD){upd={n};render()}else{if(upd){upd=null;render()}if(manual)toast('У вас последняя версия: сборка '+BUILD)}}
  catch(e){if(manual)toast('Не удалось проверить обновление')}}
-function appSection(box){box.append(h('div',{class:'lab'},'Приложение'));
+function appSection(box){if(cloud)box.append(h('div',{class:'lab'},'Синхронизация'),user?h('div',{class:'row2',style:'margin-bottom:6px'},h('span',{},user.email||'Аккаунт'),h('button',{class:'btn soft',onclick:()=>{close();signOut()}},'Выйти')):h('div',{},h('p',{class:'sub',style:'margin:0 0 8px'},'Не включена: задачи хранятся только на этом устройстве.'),h('div',{class:'acts',style:'margin-top:0'},h('button',{class:'btn',onclick:authSheet},'Войти или создать аккаунт'))));
+ box.append(h('div',{class:'lab'},'Приложение'));
  if(NATIVE){const lead=+(localStorage.getItem('trk-lead')||10);
   box.append(h('div',{class:'lab'},'Напоминание перед началом задачи'),chips([[0,'Выкл'],[5,'За 5 мин'],[10,'За 10 мин'],[30,'За 30 мин']],lead,v=>{try{localStorage.setItem('trk-lead',String(v))}catch(e){}sched()}),
-   h('p',{class:'sub'},'Версия: сборка '+BUILD),h('div',{class:'acts',style:'margin-top:0'},h('button',{class:'btn soft',onclick:()=>checkUpdate(true)},'Проверить обновление')))}
- else box.append(h('p',{class:'sub'},'Версия для телефона с уведомлениями и обновлениями.'),h('div',{class:'acts',style:'margin-top:0'},h('button',{class:'btn soft',onclick:()=>openUrl(apkUrl())},'Скачать для Android')))}
+   h('p',{class:'sub'},'Режим: приложение, сборка '+BUILD),h('div',{class:'acts',style:'margin-top:0'},h('button',{class:'btn soft',onclick:()=>checkUpdate(true)},'Проверить обновление')))}
+ else box.append(h('p',{class:'sub'},'Режим: браузер. Есть версия для телефона с уведомлениями.'),h('div',{class:'acts',style:'margin-top:0'},h('button',{class:'btn soft',onclick:()=>openUrl(apkUrl())},'Скачать для Android')))}
 function onNote(a,x){if(!x||!x.ds)return;const t=dayTasks(x.ds).find(q=>q.id===x.id);day=x.ds;tab='day';anim='';render();
  if(!t||x.k!=='e')return;if(a==='done')put('l_'+x.ds+'_'+x.id,{st:'done'});else if(!logOf(x.ds,t.id))reasonSheet(x.ds,t)}
 function nativeInit(){try{const C=window.Capacitor;
+ if(C&&C.Plugins&&C.Plugins.App&&C.Plugins.App.getInfo)C.Plugins.App.getInfo().then(i=>{BUILD=parseInt(i.build,10)||0;checkUpdate(false)}).catch(()=>{});
  if(C&&C.isNativePlatform&&C.isNativePlatform()&&C.Plugins&&C.Plugins.LocalNotifications){LN=C.Plugins.LocalNotifications;
   LN.requestPermissions().catch(()=>{});
   LN.createChannel({id:'tasks',name:'Задачи',importance:4,visibility:1,vibration:true}).catch(()=>{});
@@ -512,10 +521,10 @@ async function scheduleNative(){if(!LN)return;
 if(cloud){sb=supabase.createClient(TRK_CONFIG.url,TRK_CONFIG.key,{auth:{persistSession:true,autoRefreshToken:true}});
  col={doc:function(k){return{set:function(){var d=loadDirty();d[k]='p';saveDirty(d);return flush()},delete:function(){var d=loadDirty();d[k]='d';saveDirty(d);return flush()}}}};
  sb.auth.onAuthStateChange(function(ev,s){setTimeout(function(){
-  if(!s||!s.user){if(ev==='SIGNED_OUT'||ev==='INITIAL_SESSION'){if(user)loggedOut();else{needAuth=true;render()}}return}
+  if(!s||!s.user){if(ev==='SIGNED_OUT'||ev==='INITIAL_SESSION'){if(user)loggedOut();else render()}return}
   if(!user||user.id!==s.user.id)startSync(s)},0)});
  window.addEventListener('online',function(){flush();if(user&&!synced&&!syncing)startSync({user:user})})}
-applyTheme();nativeInit();render();setTimeout(()=>checkUpdate(false),4000);setInterval(()=>checkUpdate(false),6*36e5);
+applyTheme();nativeInit();render();setTimeout(()=>checkUpdate(false),4000);if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});setInterval(()=>checkUpdate(false),6*36e5);
 })();
 </script>
 </body>
