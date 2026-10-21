@@ -11,7 +11,27 @@ permissions:
   id-token: write
 
 jobs:
+  # Сайт и содержимое приложения: обновляется при каждой загрузке файлов
+  pages:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: cp node_modules/@supabase/supabase-js/dist/umd/supabase.js www/supabase.js
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: www
+      - uses: actions/deploy-pages@v4
+
+  # Файл приложения для телефона: собирается только вручную (Actions, Run workflow)
   apk:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,17 +42,352 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: Version number
+        run: echo "VC=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
       - name: Install packages
         run: npm install
       - name: Copy Supabase library
         run: cp node_modules/@supabase/supabase-js/dist/umd/supabase.js www/supabase.js
       - name: Create Android project
         run: npx cap add android
+      - name: Add native alarm
+        run: |
+          D=android/app/src/main/java/app/trekerzadach
+          mkdir -p "$D"
+          cat > "$D/AlarmStore.java" <<'JAVA_EOF'
+          package app.trekerzadach;
+
+          import android.app.AlarmManager;
+          import android.app.PendingIntent;
+          import android.content.Context;
+          import android.content.Intent;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          class AlarmStore {
+              static final String PREFS = "trk_alarms";
+              static final int SNOOZE_OFFSET = 20000000;
+
+              static JSONArray load(Context c, String key) {
+                  try {
+                      return new JSONArray(c.getSharedPreferences(PREFS, 0).getString(key, "[]"));
+                  } catch (Exception e) {
+                      return new JSONArray();
+                  }
+              }
+
+              static void save(Context c, String key, JSONArray a) {
+                  c.getSharedPreferences(PREFS, 0).edit().putString(key, a.toString()).apply();
+              }
+
+              static void set(Context c, int id, long at, String title, String body) {
+                  AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
+                  Intent fire = new Intent(c, AlarmReceiver.class);
+                  fire.putExtra("id", id);
+                  fire.putExtra("title", title);
+                  fire.putExtra("body", body);
+                  PendingIntent op = PendingIntent.getBroadcast(c, id, fire, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                  PendingIntent show = PendingIntent.getActivity(c, 0, new Intent(c, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
+                  am.setAlarmClock(new AlarmManager.AlarmClockInfo(at, show), op);
+              }
+
+              static void cancel(Context c, int id) {
+                  AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
+                  PendingIntent op = PendingIntent.getBroadcast(c, id, new Intent(c, AlarmReceiver.class), PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
+                  if (op != null) {
+                      am.cancel(op);
+                  }
+              }
+
+              static void rescheduleAll(Context c) {
+                  long now = System.currentTimeMillis();
+                  String[] keys = {"tasks", "snz"};
+                  for (String k : keys) {
+                      JSONArray a = load(c, k);
+                      for (int i = 0; i < a.length(); i++) {
+                          JSONObject o = a.optJSONObject(i);
+                          if (o == null) continue;
+                          long at = o.optLong("at");
+                          if (at > now) {
+                              set(c, o.optInt("id"), at, o.optString("title"), o.optString("body"));
+                          }
+                      }
+                  }
+              }
+
+              static void snooze(Context c, int id, String title, String body) {
+                  long at = System.currentTimeMillis() + 10 * 60 * 1000L;
+                  int sid = (id % SNOOZE_OFFSET) + SNOOZE_OFFSET;
+                  set(c, sid, at, title, body);
+                  long now = System.currentTimeMillis();
+                  JSONArray old = load(c, "snz");
+                  JSONArray fresh = new JSONArray();
+                  try {
+                      for (int i = 0; i < old.length(); i++) {
+                          JSONObject o = old.optJSONObject(i);
+                          if (o != null && o.optLong("at") > now && o.optInt("id") != sid) fresh.put(o);
+                      }
+                      JSONObject n = new JSONObject();
+                      n.put("id", sid);
+                      n.put("at", at);
+                      n.put("title", title);
+                      n.put("body", body);
+                      fresh.put(n);
+                  } catch (Exception e) {
+                      // ignore
+                  }
+                  save(c, "snz", fresh);
+              }
+          }
+          JAVA_EOF
+          cat > "$D/AlarmReceiver.java" <<'JAVA_EOF'
+          package app.trekerzadach;
+
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.os.Build;
+
+          public class AlarmReceiver extends BroadcastReceiver {
+              @Override
+              public void onReceive(Context c, Intent i) {
+                  Intent s = new Intent(c, AlarmService.class);
+                  s.putExtras(i);
+                  if (Build.VERSION.SDK_INT >= 26) {
+                      c.startForegroundService(s);
+                  } else {
+                      c.startService(s);
+                  }
+              }
+          }
+          JAVA_EOF
+          cat > "$D/BootReceiver.java" <<'JAVA_EOF'
+          package app.trekerzadach;
+
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+
+          public class BootReceiver extends BroadcastReceiver {
+              @Override
+              public void onReceive(Context c, Intent i) {
+                  AlarmStore.rescheduleAll(c);
+              }
+          }
+          JAVA_EOF
+          cat > "$D/AlarmService.java" <<'JAVA_EOF'
+          package app.trekerzadach;
+
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.app.Service;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.pm.ServiceInfo;
+          import android.media.AudioAttributes;
+          import android.media.AudioManager;
+          import android.media.MediaPlayer;
+          import android.media.RingtoneManager;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Handler;
+          import android.os.IBinder;
+          import android.os.Looper;
+          import android.os.Vibrator;
+
+          public class AlarmService extends Service {
+              static final String CH = "trk_alarm_ring";
+              private MediaPlayer mp;
+              private Vibrator vb;
+              private final Handler handler = new Handler(Looper.getMainLooper());
+              private final Runnable autoStop = new Runnable() {
+                  @Override
+                  public void run() {
+                      stopSelf();
+                  }
+              };
+
+              @Override
+              public IBinder onBind(Intent i) {
+                  return null;
+              }
+
+              @Override
+              public int onStartCommand(Intent i, int flags, int startId) {
+                  String action = i == null ? null : i.getAction();
+                  if ("STOP".equals(action)) {
+                      stopSelf();
+                      return START_NOT_STICKY;
+                  }
+                  if ("SNOOZE".equals(action)) {
+                      AlarmStore.snooze(this, i.getIntExtra("id", 0), i.getStringExtra("title"), i.getStringExtra("body"));
+                      stopSelf();
+                      return START_NOT_STICKY;
+                  }
+                  if (i == null) {
+                      stopSelf();
+                      return START_NOT_STICKY;
+                  }
+                  int aid = i.getIntExtra("id", 0);
+                  String title = i.getStringExtra("title");
+                  String body = i.getStringExtra("body");
+                  NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                  if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CH) == null) {
+                      NotificationChannel ch = new NotificationChannel(CH, "Будильник (звонок)", NotificationManager.IMPORTANCE_HIGH);
+                      ch.setSound(null, null);
+                      ch.enableVibration(false);
+                      nm.createNotificationChannel(ch);
+                  }
+                  PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
+                  Intent stopI = new Intent(this, AlarmService.class);
+                  stopI.setAction("STOP");
+                  PendingIntent stop = PendingIntent.getService(this, 1, stopI, PendingIntent.FLAG_IMMUTABLE);
+                  Intent snzI = new Intent(this, AlarmService.class);
+                  snzI.setAction("SNOOZE");
+                  snzI.putExtra("id", aid);
+                  snzI.putExtra("title", title);
+                  snzI.putExtra("body", body);
+                  PendingIntent snz = PendingIntent.getService(this, 2, snzI, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+                  Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CH) : new Notification.Builder(this);
+                  b.setSmallIcon(android.R.drawable.ic_lock_idle_alarm);
+                  b.setContentTitle(title);
+                  b.setContentText(body);
+                  b.setCategory(Notification.CATEGORY_ALARM);
+                  b.setOngoing(true);
+                  b.setContentIntent(open);
+                  b.addAction(0, "Выключить", stop);
+                  b.addAction(0, "Через 10 мин", snz);
+                  Notification n = b.build();
+                  if (Build.VERSION.SDK_INT >= 29) {
+                      startForeground(1001, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+                  } else {
+                      startForeground(1001, n);
+                  }
+                  play();
+                  handler.removeCallbacks(autoStop);
+                  handler.postDelayed(autoStop, 120000);
+                  return START_NOT_STICKY;
+              }
+
+              private void play() {
+                  stopPlay();
+                  try {
+                      AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+                      int mx = am.getStreamMaxVolume(AudioManager.STREAM_ALARM);
+                      if (am.getStreamVolume(AudioManager.STREAM_ALARM) < mx * 0.6) {
+                          am.setStreamVolume(AudioManager.STREAM_ALARM, (int) (mx * 0.7), 0);
+                      }
+                      Uri u = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+                      if (u == null) u = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+                      mp = new MediaPlayer();
+                      mp.setAudioAttributes(new AudioAttributes.Builder()
+                              .setUsage(AudioAttributes.USAGE_ALARM)
+                              .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                              .build());
+                      mp.setDataSource(this, u);
+                      mp.setLooping(true);
+                      mp.prepare();
+                      mp.start();
+                  } catch (Exception e) {
+                      // keep vibrating even if the sound failed
+                  }
+                  vb = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+                  if (vb != null) {
+                      vb.vibrate(new long[]{0, 700, 400}, 0);
+                  }
+              }
+
+              private void stopPlay() {
+                  try {
+                      if (mp != null) {
+                          mp.stop();
+                          mp.release();
+                      }
+                  } catch (Exception e) {
+                      // ignore
+                  }
+                  mp = null;
+                  if (vb != null) vb.cancel();
+              }
+
+              @Override
+              public void onDestroy() {
+                  handler.removeCallbacks(autoStop);
+                  stopPlay();
+                  super.onDestroy();
+              }
+          }
+          JAVA_EOF
+          cat > "$D/TaskAlarmPlugin.java" <<'JAVA_EOF'
+          package app.trekerzadach;
+
+          import android.content.Context;
+          import android.content.Intent;
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          @CapacitorPlugin(name = "TaskAlarm")
+          public class TaskAlarmPlugin extends Plugin {
+
+              @PluginMethod
+              public void setAll(PluginCall call) {
+                  try {
+                      Context c = getContext();
+                      JSONArray old = AlarmStore.load(c, "tasks");
+                      for (int i = 0; i < old.length(); i++) {
+                          JSONObject o = old.optJSONObject(i);
+                          if (o != null) AlarmStore.cancel(c, o.optInt("id"));
+                      }
+                      JSONArray fresh = call.getData().optJSONArray("alarms");
+                      if (fresh == null) fresh = new JSONArray();
+                      AlarmStore.save(c, "tasks", fresh);
+                      AlarmStore.rescheduleAll(c);
+                      call.resolve();
+                  } catch (Exception e) {
+                      call.reject(String.valueOf(e.getMessage()));
+                  }
+              }
+
+              @PluginMethod
+              public void test(PluginCall call) {
+                  AlarmStore.set(getContext(), 9999, System.currentTimeMillis() + 5000L, "Проверка будильника", "Если вы это слышите, будильник работает");
+                  call.resolve();
+              }
+
+              @PluginMethod
+              public void stop(PluginCall call) {
+                  getContext().stopService(new Intent(getContext(), AlarmService.class));
+                  call.resolve();
+              }
+          }
+          JAVA_EOF
+          cat > "$D/MainActivity.java" <<'JAVA_EOF'
+          package app.trekerzadach;
+
+          import android.os.Bundle;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  registerPlugin(TaskAlarmPlugin.class);
+                  super.onCreate(savedInstanceState);
+              }
+          }
+          JAVA_EOF
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n    <uses-permission android:name="android.permission.VIBRATE"/>\n    <uses-permission android:name="android.permission.WAKE_LOCK"/>\n</manifest>#' "$M"
+          sed -i 's#</application>#    <service android:name=".AlarmService" android:exported="false" android:foregroundServiceType="mediaPlayback"/>\n    <receiver android:name=".AlarmReceiver" android:exported="false"/>\n    <receiver android:name=".BootReceiver" android:exported="true"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/></intent-filter></receiver>\n</application>#' "$M"
+          grep -c "AlarmService" "$M"
       - name: Add notification permissions
         run: |
           sed -i 's#</manifest>#    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>\n</manifest>#' android/app/src/main/AndroidManifest.xml
-      - name: Stamp build number
-        run: echo "window.TRK_BUILD=${{ github.run_number }};" > www/version.js
       - name: Sync web files
         run: npx cap sync android
       - name: Use fixed signing key
@@ -48,7 +403,7 @@ jobs:
           keytool -list -keystore ~/.android/debug.keystore -storepass android | grep -i androiddebugkey
       - name: Set version number
         run: |
-          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"build-${{ github.run_number }}\"/" android/app/build.gradle
+          sed -i -E "s/versionCode [0-9]+/versionCode ${VC}/; s/versionName \"[^\"]*\"/versionName \"app-${VC}\"/" android/app/build.gradle
           grep -nE "versionCode|versionName" android/app/build.gradle
       - name: Build APK
         working-directory: android
@@ -57,30 +412,8 @@ jobs:
           ./gradlew assembleDebug
       - name: Show signature fingerprint
         run: keytool -printcert -jarfile android/app/build/outputs/apk/debug/app-debug.apk | grep -i sha256 || true
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tracker-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: Трекер задач, сборка ${{ github.run_number }}
+          tag_name: app-${{ env.VC }}
+          name: Трекер задач, приложение ${{ env.VC }}
           files: android/app/build/outputs/apk/debug/app-debug.apk
-
-  pages:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    environment:
-      name: github-pages
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm install
-      - run: cp node_modules/@supabase/supabase-js/dist/umd/supabase.js www/supabase.js
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: www
-      - uses: actions/deploy-pages@v4
