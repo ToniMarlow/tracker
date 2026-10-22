@@ -531,8 +531,19 @@ async function checkUpdate(manual){
   const j=await r.json(),n=parseInt(String(j.tag_name||'').replace(/\D/g,''),10)||0;
   if(n>BUILD){upd={n};render()}else{if(upd){upd=null;render()}if(manual)toast('У вас последняя версия: сборка '+BUILD)}}
  catch(e){if(manual)toast('Не удалось проверить обновление')}}
+function alarmSettings(box){
+ const nm=h('p',{class:'sub',style:'margin:0 0 8px'},'Мелодия: …'),vl=h('div',{class:'lab'},'Громкость'),vol=h('input',{type:'range',min:0,max:100,step:5,class:'rng','aria-label':'Громкость будильника'});
+ const lbl=v=>v>0?'Громкость будильника: '+v+'%':'Громкость будильника: как в настройках телефона';
+ const refresh=()=>TA.getSettings().then(r=>{nm.textContent='Мелодия: '+(r.name||'по умолчанию (будильник телефона)');vol.value=r.vol||0;vl.textContent=lbl(r.vol||0)}).catch(()=>{});
+ vol.oninput=()=>{vl.textContent=lbl(+vol.value);TA.setVolume({vol:+vol.value}).catch(()=>{})};
+ const act=m=>()=>TA[m]().then(refresh).catch(()=>toast('Не удалось'));
+ box.append(h('div',{class:'lab'},'Будильник'),nm,
+  h('div',{class:'chips'},h('button',{class:'chip',onclick:act('pickRingtone')},'Мелодии телефона'),h('button',{class:'chip',onclick:act('pickFile')},'Свой файл'),h('button',{class:'chip',onclick:act('resetSound')},'По умолчанию')),
+  vl,vol,h('p',{class:'sub',style:'font-size:12.5px'},'Будильник звонит по громкости «Будильник» (отдельный ползунок в настройках звука телефона) и не зависит от режима «без звука». Если задать громкость здесь, на время звонка приложение выставит её и потом вернёт прежнюю.'));
+ refresh()}
 function appSection(box){if(cloud)box.append(h('div',{class:'lab'},'Синхронизация'),user?h('div',{class:'row2',style:'margin-bottom:6px'},h('span',{},user.email||'Аккаунт'),h('button',{class:'btn soft',onclick:()=>{close();signOut()}},'Выйти')):h('div',{},h('p',{class:'sub',style:'margin:0 0 8px'},'Не включена: задачи хранятся только на этом устройстве.'),h('div',{class:'acts',style:'margin-top:0'},h('button',{class:'btn',onclick:authSheet},'Войти или создать аккаунт'))));
  box.append(h('div',{class:'lab'},'Приложение'));
+ if(NATIVE){if(TA)alarmSettings(box);else box.append(h('p',{class:'sub'},'Будильник сейчас работает через уведомления и поэтому зависит от громкости уведомлений. Установите свежую версию приложения (на GitHub: Actions, Build, Run workflow), чтобы он звонил как настоящий.'))}
  if(NATIVE){const lead=+(localStorage.getItem('trk-lead')||10);
   box.append(h('div',{class:'lab'},'Напоминание перед началом задачи'),chips([[0,'Выкл'],[5,'За 5 мин'],[10,'За 10 мин'],[30,'За 30 мин']],lead,v=>{try{localStorage.setItem('trk-lead',String(v))}catch(e){}sched()}),
    h('p',{class:'sub'},'Режим: приложение, сборка '+BUILD),h('div',{class:'acts',style:'margin-top:0'},h('button',{class:'btn soft',onclick:()=>checkUpdate(true)},'Проверить обновление'),TA&&h('button',{class:'btn soft',onclick:()=>{TA.test().then(()=>toast('Прозвенит через 5 секунд: заблокируйте экран')).catch(()=>toast('Не удалось'))}},'Проверить будильник')))}
