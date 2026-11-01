@@ -206,6 +206,10 @@ jobs:
               private MediaPlayer mp;
               private Vibrator vb;
               private int prevVol = -1;
+              static volatile boolean ON = false;
+              static volatile int lastId = 0;
+              static volatile String lastTitle = "";
+              static volatile String lastBody = "";
               private final Handler handler = new Handler(Looper.getMainLooper());
               private final Runnable autoStop = new Runnable() {
                   @Override
@@ -223,11 +227,13 @@ jobs:
               public int onStartCommand(Intent i, int flags, int startId) {
                   String action = i == null ? null : i.getAction();
                   if ("STOP".equals(action)) {
+                      stopForeground(true);
                       stopSelf();
                       return START_NOT_STICKY;
                   }
                   if ("SNOOZE".equals(action)) {
                       AlarmStore.snooze(this, i.getIntExtra("id", 0), i.getStringExtra("title"), i.getStringExtra("body"));
+                      stopForeground(true);
                       stopSelf();
                       return START_NOT_STICKY;
                   }
@@ -238,6 +244,10 @@ jobs:
                   int aid = i.getIntExtra("id", 0);
                   String title = i.getStringExtra("title");
                   String body = i.getStringExtra("body");
+                  lastId = aid;
+                  lastTitle = title == null ? "" : title;
+                  lastBody = body == null ? "" : body;
+                  ON = true;
                   NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
                   if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CH) == null) {
                       NotificationChannel ch = new NotificationChannel(CH, "Будильник (звонок)", NotificationManager.IMPORTANCE_HIGH);
@@ -248,7 +258,7 @@ jobs:
                   PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
                   Intent stopI = new Intent(this, AlarmService.class);
                   stopI.setAction("STOP");
-                  PendingIntent stop = PendingIntent.getService(this, 1, stopI, PendingIntent.FLAG_IMMUTABLE);
+                  PendingIntent stop = PendingIntent.getService(this, 1, stopI, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
                   Intent snzI = new Intent(this, AlarmService.class);
                   snzI.setAction("SNOOZE");
                   snzI.putExtra("id", aid);
@@ -350,6 +360,7 @@ jobs:
 
               @Override
               public void onDestroy() {
+                  ON = false;
                   handler.removeCallbacks(autoStop);
                   stopPlay();
                   super.onDestroy();
@@ -407,6 +418,28 @@ jobs:
 
               @PluginMethod
               public void stop(PluginCall call) {
+                  getContext().stopService(new Intent(getContext(), AlarmService.class));
+                  call.resolve();
+              }
+
+              @PluginMethod
+              public void ringing(PluginCall call) {
+                  JSObject r = new JSObject();
+                  try {
+                      r.put("on", AlarmService.ON);
+                      r.put("title", AlarmService.lastTitle);
+                      r.put("body", AlarmService.lastBody);
+                  } catch (Exception e) {
+                      // ignore
+                  }
+                  call.resolve(r);
+              }
+
+              @PluginMethod
+              public void snooze(PluginCall call) {
+                  if (AlarmService.ON) {
+                      AlarmStore.snooze(getContext(), AlarmService.lastId, AlarmService.lastTitle, AlarmService.lastBody);
+                  }
                   getContext().stopService(new Intent(getContext(), AlarmService.class));
                   call.resolve();
               }
