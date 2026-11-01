@@ -546,20 +546,29 @@ function appSection(box){if(cloud)box.append(h('div',{class:'lab'},'Синхро
  if(NATIVE){if(TA)alarmSettings(box);else box.append(h('p',{class:'sub'},'Будильник сейчас работает через уведомления и поэтому зависит от громкости уведомлений. Установите свежую версию приложения (на GitHub: Actions, Build, Run workflow), чтобы он звонил как настоящий.'))}
  if(NATIVE){const lead=+(localStorage.getItem('trk-lead')||10);
   box.append(h('div',{class:'lab'},'Напоминание перед началом задачи'),chips([[0,'Выкл'],[5,'За 5 мин'],[10,'За 10 мин'],[30,'За 30 мин']],lead,v=>{try{localStorage.setItem('trk-lead',String(v))}catch(e){}sched()}),
-   h('p',{class:'sub'},'Режим: приложение, сборка '+BUILD),h('div',{class:'acts',style:'margin-top:0'},h('button',{class:'btn soft',onclick:()=>checkUpdate(true)},'Проверить обновление'),TA&&h('button',{class:'btn soft',onclick:()=>{TA.test().then(()=>toast('Прозвенит через 5 секунд: заблокируйте экран')).catch(()=>toast('Не удалось'))}},'Проверить будильник')))}
+   h('p',{class:'sub'},'Режим: приложение, сборка '+BUILD),h('div',{class:'acts',style:'margin-top:0'},h('button',{class:'btn soft',onclick:()=>checkUpdate(true)},'Проверить обновление'),TA&&h('button',{class:'btn soft',onclick:()=>{TA.test().then(()=>toast('Прозвенит через 5 секунд: заблокируйте экран')).catch(()=>toast('Не удалось'))}},'Проверить будильник'),TA&&h('button',{class:'btn soft',onclick:()=>{TA.stop().then(()=>toast('Звонок остановлен')).catch(()=>toast('Не удалось'))}},'Остановить звонок')))}
  else box.append(h('p',{class:'sub'},'Режим: браузер. Есть версия для телефона с уведомлениями.'),h('div',{class:'acts',style:'margin-top:0'},h('button',{class:'btn soft',onclick:()=>openUrl(apkUrl())},'Скачать для Android')))}
 function onNote(a,x){if(!x||!x.ds)return;const t=dayTasks(x.ds).find(q=>q.id===x.id);day=x.ds;tab='day';anim='';render();
  if(x.k==='a'){stopNative(x.ds,x.id);const kk=x.ds+'_'+x.id;if(a==='snooze')snz[kk]=Date.now()+6e5;else rang[kk]=1;saveS();saveR();sched();return}
  if(!t||x.k!=='e')return;if(a==='done')put('l_'+x.ds+'_'+x.id,{st:'done'});else if(!logOf(x.ds,t.id))reasonSheet(x.ds,t)}
 function nativeInit(){try{const C=window.Capacitor;
  if(C&&C.Plugins&&C.Plugins.App&&C.Plugins.App.getInfo)C.Plugins.App.getInfo().then(i=>{BUILD=parseInt(i.build,10)||0;checkUpdate(false)}).catch(()=>{});
- if(C&&C.isNativePlatform&&C.isNativePlatform()&&C.Plugins&&C.Plugins.LocalNotifications){LN=C.Plugins.LocalNotifications;if(C.Plugins.TaskAlarm)TA=C.Plugins.TaskAlarm;
+ if(C&&C.isNativePlatform&&C.isNativePlatform()&&C.Plugins&&C.Plugins.LocalNotifications){LN=C.Plugins.LocalNotifications;if(C.Plugins.TaskAlarm){TA=C.Plugins.TaskAlarm;ringWatch()}
   LN.requestPermissions().catch(()=>{});
   LN.createChannel({id:'tasks',name:'Задачи',importance:4,visibility:1,vibration:true}).catch(()=>{});
   LN.createChannel({id:'alarm',name:'Будильник',importance:5,visibility:1,vibration:true,lights:true}).catch(()=>{});
   LN.registerActionTypes({types:[{id:'TASK',actions:[{id:'done',title:'Выполнено'},{id:'reason',title:'Причина'}]},{id:'ALARM',actions:[{id:'stop',title:'Выключить'},{id:'snooze',title:'Через 10 мин'}]}]}).catch(()=>{});
   LN.addListener('localNotificationActionPerformed',ev=>onNote(ev.actionId,(ev.notification&&ev.notification.extra)||{}))}}catch(e){}}
 /* alarm */
+let ringShown=false,ringPoll=null;
+function ringSheet(r){ringShown=true;
+ sheet(h('div',{style:'text-align:center'},h('h2',{},'Будильник'),h('div',{class:'nowt',style:'font-size:24px;cursor:default'},r.body||r.title||'Пора начинать'),
+  h('div',{class:'acts'},h('button',{class:'btn soft',onclick:()=>{TA.snooze().catch(()=>{});close();toast('Повторю через 10 минут')}},'Через 10 мин'),
+   h('button',{class:'btn',onclick:()=>{TA.stop().catch(()=>{});close()}},'Выключить'))));
+ onClose=()=>{ringShown=false}}
+function ringWatch(){if(!TA||ringPoll)return;
+ const chk=()=>{if(document.hidden||ringShown)return;TA.ringing().then(r=>{if(r&&r.on&&!ringShown)ringSheet(r)}).catch(()=>{})};
+ ringPoll=setInterval(chk,1200);document.addEventListener('visibilitychange',chk);chk()}
 let onClose=null,fcT=null,snz={},rang={},ringT=null,ac=null,bt=null,bt2=null;
 try{snz=JSON.parse(localStorage.getItem('trk-snz')||'{}')||{};rang=JSON.parse(localStorage.getItem('trk-rang')||'{}')||{}}catch(e){}
 const saveS=()=>{try{localStorage.setItem('trk-snz',JSON.stringify(snz))}catch(e){}},saveR=()=>{try{localStorage.setItem('trk-rang',JSON.stringify(rang))}catch(e){}};
