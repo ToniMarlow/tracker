@@ -148,9 +148,9 @@ jobs:
           package app.trekerzadach;
 
           import android.content.BroadcastReceiver;
+          import android.os.Build;
           import android.content.Context;
           import android.content.Intent;
-          import android.os.Build;
 
           public class AlarmReceiver extends BroadcastReceiver {
               @Override
@@ -183,6 +183,7 @@ jobs:
           package app.trekerzadach;
 
           import android.app.Notification;
+          import android.os.Build;
           import android.app.NotificationChannel;
           import android.app.NotificationManager;
           import android.app.PendingIntent;
@@ -195,7 +196,6 @@ jobs:
           import android.media.MediaPlayer;
           import android.media.RingtoneManager;
           import android.net.Uri;
-          import android.os.Build;
           import android.os.Handler;
           import android.os.IBinder;
           import android.os.Looper;
@@ -387,6 +387,14 @@ jobs:
           import com.getcapacitor.annotation.CapacitorPlugin;
           import org.json.JSONArray;
           import org.json.JSONObject;
+          import android.os.Build;
+          import android.provider.Settings;
+          import androidx.core.content.FileProvider;
+          import java.io.File;
+          import java.io.FileOutputStream;
+          import java.io.InputStream;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
 
           @CapacitorPlugin(name = "TaskAlarm")
           public class TaskAlarmPlugin extends Plugin {
@@ -442,6 +450,75 @@ jobs:
                   }
                   getContext().stopService(new Intent(getContext(), AlarmService.class));
                   call.resolve();
+              }
+
+              @PluginMethod
+              public void build(PluginCall call) {
+                  JSObject r = new JSObject();
+                  try {
+                      android.content.pm.PackageInfo p = getContext().getPackageManager().getPackageInfo(getContext().getPackageName(), 0);
+                      long v = Build.VERSION.SDK_INT >= 28 ? p.getLongVersionCode() : p.versionCode;
+                      r.put("build", v);
+                  } catch (Exception e) {
+                      try {
+                          r.put("build", 0);
+                      } catch (Exception e2) {
+                          // ignore
+                      }
+                  }
+                  call.resolve(r);
+              }
+
+              @PluginMethod
+              public void installApk(final PluginCall call) {
+                  final String url = call.getString("url");
+                  final Context c = getContext();
+                  if (url == null || url.isEmpty()) {
+                      call.reject("no url");
+                      return;
+                  }
+                  if (Build.VERSION.SDK_INT >= 26 && !c.getPackageManager().canRequestPackageInstalls()) {
+                      Intent s = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + c.getPackageName()));
+                      s.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      c.startActivity(s);
+                      JSObject r = new JSObject();
+                      try {
+                          r.put("need", "permission");
+                      } catch (Exception e) {
+                          // ignore
+                      }
+                      call.resolve(r);
+                      return;
+                  }
+                  new Thread(new Runnable() {
+                      @Override
+                      public void run() {
+                          try {
+                              File dir = new File(c.getCacheDir(), "updates");
+                              dir.mkdirs();
+                              File f = new File(dir, "update.apk");
+                              HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
+                              con.setConnectTimeout(20000);
+                              con.setReadTimeout(60000);
+                              if (con.getResponseCode() != 200) throw new Exception("HTTP " + con.getResponseCode());
+                              InputStream in = con.getInputStream();
+                              FileOutputStream out = new FileOutputStream(f);
+                              byte[] buf = new byte[65536];
+                              int n;
+                              while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                              out.close();
+                              in.close();
+                              Uri u = FileProvider.getUriForFile(c, c.getPackageName() + ".fileprovider", f);
+                              Intent i = new Intent(Intent.ACTION_VIEW);
+                              i.setDataAndType(u, "application/vnd.android.package-archive");
+                              i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                              c.startActivity(i);
+                              call.resolve();
+                          } catch (Exception e) {
+                              call.reject(String.valueOf(e.getMessage()));
+                          }
+                      }
+                  }).start();
               }
 
               private void saveTone(String uri, String name) {
@@ -557,7 +634,7 @@ jobs:
           grep -c "AlarmService" "$M"
       - name: Add notification permissions
         run: |
-          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>\n</manifest>#' android/app/src/main/AndroidManifest.xml
+          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>\n    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>\n</manifest>#' android/app/src/main/AndroidManifest.xml
       - name: Sync web files
         run: npx cap sync android
       - name: Use fixed signing key
