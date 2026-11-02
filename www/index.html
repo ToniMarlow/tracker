@@ -522,8 +522,12 @@ function signOut(){sb.auth.signOut().catch(function(){})}
 const REPO='ToniMarlow/tracker',NATIVE=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
 let BUILD=typeof window.TRK_BUILD==='number'?window.TRK_BUILD:0,upd=null,TA=null;
 function apkUrl(){return 'https://github.com/'+REPO+'/releases/latest/download/app-debug.apk'}
+function installUpdate(){
+ if(NATIVE&&TA){toast('Скачиваю обновление…');
+  TA.installApk({url:apkUrl()}).then(r=>{if(r&&r.need==='permission')toast('Разрешите установку из этого приложения и нажмите «Обновить» ещё раз')}).catch(()=>{toast('Не получилось, открываю браузер');openUrl(apkUrl())})}
+ else openUrl(apkUrl())}
 function openUrl(u){if(NATIVE)location.href=u;else window.open(u,'_blank')}
-function updCard(){return h('div',{class:'card glass warn'},h('div',{class:'row2'},h('span',{style:'color:var(--text)'},'Доступна новая версия (сборка '+upd.n+')'),h('button',{class:'btn',onclick:()=>openUrl(apkUrl())},'Обновить')),
+function updCard(){return h('div',{class:'card glass warn'},h('div',{class:'row2'},h('span',{style:'color:var(--text)'},'Доступна новая версия (сборка '+upd.n+')'),h('button',{class:'btn',onclick:installUpdate},'Обновить')),
  h('p',{class:'sub',style:'margin:8px 0 0;font-size:13px'},'Скачайте файл и установите поверх: задачи сохранятся.'))}
 async function checkUpdate(manual){
  if(!NATIVE||!BUILD){if(manual)toast('Проверка работает в приложении на телефоне');return}
@@ -553,7 +557,8 @@ function onNote(a,x){if(!x||!x.ds)return;const t=dayTasks(x.ds).find(q=>q.id===x
  if(!t||x.k!=='e')return;if(a==='done')put('l_'+x.ds+'_'+x.id,{st:'done'});else if(!logOf(x.ds,t.id))reasonSheet(x.ds,t)}
 function nativeInit(){try{const C=window.Capacitor;
  if(C&&C.Plugins&&C.Plugins.App&&C.Plugins.App.getInfo)C.Plugins.App.getInfo().then(i=>{BUILD=parseInt(i.build,10)||0;checkUpdate(false)}).catch(()=>{});
- if(C&&C.isNativePlatform&&C.isNativePlatform()&&C.Plugins&&C.Plugins.LocalNotifications){LN=C.Plugins.LocalNotifications;if(C.Plugins.TaskAlarm){TA=C.Plugins.TaskAlarm;ringWatch()}
+ if(C&&C.isNativePlatform&&C.isNativePlatform()&&C.Plugins&&C.Plugins.LocalNotifications){LN=C.Plugins.LocalNotifications;if(C.Plugins.TaskAlarm){TA=C.Plugins.TaskAlarm;ringWatch();
+   TA.build().then(r=>{const n=parseInt(r&&r.build,10)||0;if(n){BUILD=n;checkUpdate(false)}}).catch(()=>{})}
   LN.requestPermissions().catch(()=>{});
   LN.createChannel({id:'tasks',name:'Задачи',importance:4,visibility:1,vibration:true}).catch(()=>{});
   LN.createChannel({id:'alarm',name:'Будильник',importance:5,visibility:1,vibration:true,lights:true}).catch(()=>{});
